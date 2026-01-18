@@ -1,0 +1,5 @@
+{"level":"info","message":"✅ JWT secrets validated successfully","service":"secure-campus-portal","timestamp":"2026-01-19 00:21:01"}
+{"level":"info","message":"✅ Encryption service initialized with AES-256-GCM","service":"secure-campus-portal","timestamp":"2026-01-19 00:21:01"}
+{"address":"142.250.147.109","code":"ESOCKET","command":"CONN","errno":-4039,"level":"error","message":"Email transporter verification failed: connect ETIMEDOUT 142.250.147.109:587","port":587,"service":"secure-campus-portal","stack":"Error: connect ETIMEDOUT 142.250.147.109:587\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16)","syscall":"connect","timestamp":"2026-01-19 00:21:22"}
+{"level":"info","message":"✅ JWT secrets validated successfully","service":"secure-campus-portal","timestamp":"2026-01-19 00:25:32"}
+{"level":"info","message":"✅ Encryption service initialized with AES-256-GCM","service":"secure-campus-portal","timestamp":"2026-01-19 00:25:32"}

@@ -15,7 +15,7 @@ const path = require('path');
 require('dotenv').config();
 
 // Import configurations
-const connectDatabase = require('./config/database');
+const database = require('./config/database');
 const securityConfig = require('./config/security');
 const constants = require('./config/constants');
 
@@ -35,7 +35,7 @@ const logger = require('./utils/logger');
 const app = express();
 
 // Connect to database
-connectDatabase();
+await database.connect();
 
 // Security middleware
 app.use(helmet(securityConfig.helmet));
@@ -181,3 +181,12 @@ process.on('SIGTERM', () => {
 });
 
 module.exports = app;
+
+
+
+
+
+
+
+
+
