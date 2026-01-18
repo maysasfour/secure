@@ -612,21 +612,7 @@ const deactivateMe = catchAsync(async (req, res, next) => {
   return newObj;
 };
 
-module.exports = {
-  register,
-  login,
-  logout,
-  refreshToken,
-  forgotPassword,
-  resetPassword,
-  changePassword,
-  getMe,
-  updateMe,
-  deactivateMe
-};
 
-
-// Add this to your existing authController.js
 
 // @desc    Verify reCAPTCHA token
 // @route   POST /api/auth/verify-recaptcha
@@ -652,8 +638,20 @@ const verifyRecaptcha = catchAsync(async (req, res, next) => {
   });
 });
 
-// Add this to your exports
+
+
 module.exports = {
-  // ... existing exports
+  register,
+  login,
+  logout,
+  refreshToken,
+  forgotPassword,
+  resetPassword,
+  changePassword,
+  getMe,
+  updateMe,
+  deactivateMe,
   verifyRecaptcha
 };
+
+
