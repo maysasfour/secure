@@ -1,0 +1,82 @@
+name: Docker Security Scan
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  schedule:
+    - cron: '0 2 * * 0'  # Weekly at 2 AM Sunday
+
+jobs:
+  docker-security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    
+    # Build Docker images
+    - name: Build Backend Docker Image
+      run: |
+        cd backend
+        docker build -t secure-campus-backend:latest .
+    
+    - name: Build Frontend Docker Image
+      run: |
+        cd frontend
+        docker build -t secure-campus-frontend:latest .
+    
+    # Trivy Vulnerability Scanner
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'secure-campus-backend:latest,secure-campus-frontend:latest'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH'
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    # Docker Bench Security
+    - name: Run Docker Bench Security
+      run: |
+        docker run --rm --net host --pid host --userns host --cap-add audit_control \
+          -e DOCKER_CONTENT_TRUST=1 \
+          -v /etc:/etc:ro \
+          -v /usr/bin/containerd:/usr/bin/containerd:ro \
+          -v /usr/bin/runc:/usr/bin/runc:ro \
+          -v /usr/lib/systemd:/usr/lib/systemd:ro \
+          -v /var/lib:/var/lib:ro \
+          -v /var/run/docker.sock:/var/run/docker.sock:ro \
+          --label docker_bench_security \
+          docker/docker-bench-security
+    
+    # Hadolint for Dockerfile linting
+    - name: Run Hadolint
+      uses: hadolint/hadolint-action@v3.0.0
+      with:
+        dockerfile: |
+          backend/Dockerfile
+          frontend/Dockerfile
+    
+    # Check for secrets in code
+    - name: Detect Secrets
+      uses: RobertFischer/detect-secrets-action@v2
+      with:
+        fail-on-unaudited: true
+        fail-on-live: true
+    
+    # Upload Security Reports
+    - name: Upload Security Reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: docker-security-reports
+        path: |
+          trivy-results.sarif
+          hadolint-results.json
+        retention-days: 30

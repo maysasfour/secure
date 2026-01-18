@@ -1,0 +1,59 @@
+name: SonarQube Analysis
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  sonarqube:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        cd backend
+        npm ci
+        cd ../frontend
+        npm ci
+    
+    - name: Run tests with coverage
+      run: |
+        cd backend
+        npm test -- --coverage
+        cd ../frontend
+        npm test -- --coverage --watchAll=false
+    
+    - name: SonarQube Scan
+      uses: SonarSource/sonarqube-scan-action@master
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      with:
+        args: >
+          -Dsonar.projectKey=secure-campus-portal
+          -Dsonar.projectName=SecureCampusPortal
+          -Dsonar.sources=backend/src,frontend/src
+          -Dsonar.tests=backend/tests,frontend/tests
+          -Dsonar.javascript.lcov.reportPaths=backend/coverage/lcov.info,frontend/coverage/lcov.info
+          -Dsonar.coverage.exclusions=**/*.test.js,**/*.spec.js,**/node_modules/**
+          -Dsonar.security.exclusions=**/node_modules/**,**/*.min.js
+          -Dsonar.cpd.exclusions=**/node_modules/**
+    
+    - name: Quality Gate Check
+      uses: SonarSource/sonarqube-quality-gate-action@master
+      timeout-minutes: 5
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

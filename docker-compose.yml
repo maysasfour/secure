@@ -1,60 +1,122 @@
 version: '3.8'
 
 services:
+  # MongoDB Service (Using your MongoDB Atlas)
+  mongodb:
+    image: mongo:6.0
+    container_name: secure-campus-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mayssuhail_db_user
+      MONGO_INITDB_ROOT_PASSWORD: h0eYPBxQpfyWuiZU
+      MONGO_INITDB_DATABASE: secure_campus
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongodb/init.js:/docker-entrypoint-initdb.d/init.js:ro
+    ports:
+      - "27017:27017"
+    networks:
+      - secure-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    command: >
+      mongod
+      --bind_ip_all
+      --auth
+      --wiredTigerCacheSizeGB 1.5
+
+  # Backend Service
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: secure-campus-backend
+    restart: unless-stopped
+    environment:
+      # Application
+      - NODE_ENV=production
+      - PORT=5000
+      - FRONTEND_URL=http://localhost:3000
+      
+      # Database (Using your MongoDB Atlas)
+      - MONGODB_URI=mongodb+srv://mayssuhail_db_user:h0eYPBxQpfyWuiZU@cluster0.0gol1lo.mongodb.net/secure_campus?retryWrites=true&w=majority&appName=Cluster0
+      
+      # JWT Configuration
+      - JWT_SECRET=ba9b15d484adfe68748d5a048ce59a2265255c7a6ffdb4aedf4c3662676d65ac7fcc5bc119acf2e932634155c64a79e6721a0cc126020bfa2b5970d3462998fe
+      - JWT_EXPIRE=15m
+      - JWT_REFRESH_SECRET=b5dd6a249c233ee1664eaaab50895b393af06c7684987c29500bc5f7d30254b3bd403c1c6bfe6ffdc149642bb81524c8a2bf84aef858eb036d25be839335c019
+      - JWT_REFRESH_EXPIRE=7d
+      
+      # Encryption Configuration
+      - ENCRYPTION_KEY=D9B4F5FD3A34875467433773A173D83B79236C74613E50D7220A60D913AF68AD
+      - IV_KEY=408CFCE02C43F86219319718448A60D2
+      
+      # Security
+      - RATE_LIMIT_MAX_REQUESTS=100
+      - RATE_LIMIT_AUTH_MAX=5
+      - PASSWORD_MIN_LENGTH=8
+      - BCRYPT_ROUNDS=12
+      
+      # Logging
+      - LOG_LEVEL=info
+
+       - ENABLE_RECAPTCHA=true
+      - GOOGLE_CLOUD_PROJECT_ID=secret-timing-397615
+      - RECAPTCHA_SITE_KEY=6LfPqE4sAAAAACBKer-6qKwg5xFXSRDtDRSyjdSp
+      - RECAPTCHA_THRESHOLD=0.5
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/service-account-key.json
+    volumes:
+      - backend_logs:/app/logs
+      - ./service-account-key.json:/app/service-account-key.json:ro
     ports:
       - "5000:5000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - secure-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: secure-campus-frontend
+    restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - MONGODB_URI=${MONGODB_URI}
-      - JWT_SECRET=${JWT_SECRET}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-    depends_on:
-      - mongodb
-    networks:
-      - app-network
-
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-    environment:
       - REACT_APP_API_URL=http://localhost:5000/api
+      - REACT_APP_RECAPTCHA_SITE_KEY=${RECAPTCHA_SITE_KEY:-test-key}
+    ports:
+      - "80:80"
+      - "443:443"
     depends_on:
       - backend
     networks:
-      - app-network
+      - secure-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
-  mongodb:
-    image: mongo:6
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=admin
-      - MONGO_INITDB_ROOT_PASSWORD=securepassword
-    networks:
-      - app-network
-
-  sonarqube:
-    image: sonarqube:community
-    ports:
-      - "9000:9000"
-    environment:
-      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
-    volumes:
-      - sonarqube_data:/opt/sonarqube/data
-      - sonarqube_extensions:/opt/sonarqube/extensions
-    networks:
-      - app-network
+networks:
+  secure-network:
+    driver: bridge
 
 volumes:
   mongodb_data:
-  sonarqube_data:
-  sonarqube_extensions:
-
-networks:
-  app-network:
-    driver: bridge
+    driver: local
+  backend_logs:
+    driver: local

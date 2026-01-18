@@ -1,0 +1,50 @@
+# Build stage
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build application
+RUN npm run build
+
+# Production stage
+FROM nginx:alpine
+
+# Install security updates
+RUN apk update && apk upgrade && \
+    rm -rf /var/cache/apk/*
+
+# Remove default nginx configuration
+RUN rm /etc/nginx/conf.d/default.conf
+
+# Copy custom nginx configuration
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Copy built files
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Create non-root user
+RUN addgroup -g 1001 -S nginxuser && \
+    adduser -S nginxuser -u 1001 && \
+    chown -R nginxuser:nginxuser /usr/share/nginx/html && \
+    chown -R nginxuser:nginxuser /var/cache/nginx && \
+    chown -R nginxuser:nginxuser /var/log/nginx && \
+    chown -R nginxuser:nginxuser /etc/nginx
+
+USER nginxuser
+
+# Security headers
+RUN echo "server_tokens off;" > /etc/nginx/conf.d/security.conf && \
+    echo "more_set_headers 'X-Content-Type-Options: nosniff';" >> /etc/nginx/conf.d/security.conf && \
+    echo "more_set_headers 'X-Frame-Options: DENY';" >> /etc/nginx/conf.d/security.conf && \
+    echo "more_set_headers 'X-XSS-Protection: 1; mode=block';" >> /etc/nginx/conf.d/security.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

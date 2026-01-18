@@ -1,0 +1,102 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly scan
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'javascript', 'python' ]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    # Backend Security Scans
+    - name: Run NPM Audit
+      run: |
+        cd backend
+        npm audit --production --audit-level=high
+      continue-on-error: true
+    
+    - name: Run Snyk Security Scan
+      uses: snyk/actions/node@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        args: --severity-threshold=high --fail-on=upgradable
+      continue-on-error: true
+    
+    - name: Run OWASP Dependency Check
+      uses: dependency-check/Dependency-Check_Action@main
+      with:
+        project: 'SecureCampusPortal'
+        path: './backend'
+        format: 'HTML'
+        out: './reports'
+        args: '--scan ./backend --format HTML --format JSON --out ./reports'
+    
+    # Frontend Security Scans
+    - name: Frontend NPM Audit
+      run: |
+        cd frontend
+        npm audit --production --audit-level=high
+      continue-on-error: true
+    
+    - name: Run ESLint Security Plugin
+      run: |
+        cd frontend
+        npx eslint . --ext .js,.jsx --config .eslintrc.security.js --output-file eslint-security-report.json
+      continue-on-error: true
+    
+    # CodeQL Analysis
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: ${{ matrix.language }}
+        queries: security-extended,security-and-quality
+    
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v2
+    
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+      with:
+        category: "/language:${{matrix.language}}"
+    
+    # Upload Security Reports
+    - name: Upload Security Reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          ./reports
+          ./frontend/eslint-security-report.json
+        retention-days: 30
+    
+    # Send Security Notifications
+    - name: Send Security Alert
+      if: failure()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        fields: repo,message,commit,author,action,eventName,ref,workflow,job,took
+        channel: '#security-alerts'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
