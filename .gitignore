@@ -4,3 +4,4 @@ dist/
 scans/*.json
 scans/*.md
 !scans/README.md
+.env.example
